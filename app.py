@@ -163,7 +163,7 @@ app.layout = html.Div(
                 dcc.Dropdown(
                     id="dropdown_map",
                     options=[{"label": x, "value": x} 
-                              for x in all_dates],
+                              for x in all_dates[:2]],
                     value='2021-10-31',
                     multi=False)
                 ],
