@@ -159,11 +159,11 @@ app.layout = html.Div(
             html.H2('County Home Values (*This takes some time to run.)', style={"fontSize": 18}),
             html.Hr(className="my-2"),
             html.Div([
-                html.Label("Choose Date: "),
+                html.Label("Choose Date:** "),
                 dcc.Dropdown(
                     id="dropdown_map",
                     options=[{"label": x, "value": x} 
-                              for x in all_dates[:2]],
+                              for x in ['2021-10-31','2021-09-30','2021-08-31']],
                     value='2021-10-31',
                     multi=False)
                 ],
@@ -175,6 +175,7 @@ app.layout = html.Div(
                     width={"size": 8, "offset": 2}
                 )
             ),
+            html.Footer('**Keeping three dates due to Heroku memory limit.')
             ],
             className="p-3 bg-white rounded-3"
         ),
@@ -208,7 +209,7 @@ def update_growth_chart(states):
     Output("map", "figure"), 
     Input("dropdown_map", "value"))
 def update_map(date):
-    mask = df_map['Date'] == date
+    mask = (df_map['Date'] == date)
     fig = ff.create_choropleth(df_map[mask]['FIPS'].to_list(), df_map[mask]['Home Value'].to_list(),
                                binning_endpoints = list(np.linspace(0,500000,11,dtype=int)),
                                centroid_marker={'opacity': 0},
