@@ -8,14 +8,17 @@ import dash
 from dash import dcc
 from dash import html
 import plotly.express as px
-# import plotly.figure_factory as ff
+import plotly.figure_factory as ff
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 
+import numpy as np
 import pandas as pd
 
 from whitenoise import WhiteNoise
 
+import warnings
+warnings.filterwarnings("ignore")
 
 # read data
 df = pd.read_csv('County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv')
@@ -44,16 +47,26 @@ df_100_2018_10_31 = df_100_2018_10_31.sort_values(by='2018-10-31', ascending=Fal
 df_100_2011_10_31 = df[['County','State','2011-10-31']]
 df_100_2011_10_31 = df_100_2011_10_31.sort_values(by='2011-10-31', ascending=False)[:100].groupby('State').count().reset_index()[['State','County']]
 
-app = dash.Dash(__name__,external_stylesheets = [dbc.themes.BOOTSTRAP])
-server = app.server
-server.wsgi_app = WhiteNoise(server.wsgi_app, root='static/')
-
 current_100 = px.pie(df_100_2021_10_31, values='County', names='State', title='2021-10-31')
 current_100.update_layout(title_x=0.5)
 three_yr_100 = px.pie(df_100_2018_10_31, values='County', names='State', title='2018-10-31')
 three_yr_100.update_layout(title_x=0.5)
 ten_yr_100 = px.pie(df_100_2011_10_31, values='County', names='State', title='2011-10-31')
 ten_yr_100.update_layout(title_x=0.5)
+
+# put data on map
+df['StateCodeFIPS_2d'] = df['StateCodeFIPS'].apply(lambda x: "0"+str(x) if len(str(x)) == 1 else str(x))
+df['MunicipalCodeFIPS_3d'] = df['MunicipalCodeFIPS'].apply(lambda x: "00"+str(x) if len(str(x)) == 1 else ("0"+str(x) if len(str(x))==2 else str(x)))
+df['FIPS'] = df['StateCodeFIPS_2d'] + df['MunicipalCodeFIPS_3d']
+df_map = df[df.columns[-1:].append(df.columns[9:-6])]
+df_map = pd.melt(df_map, id_vars=['FIPS'], value_vars=df_map.columns[1:])
+df_map.columns = ['FIPS','Date','Home Value']
+
+all_dates = sorted(df_map['Date'].unique(),reverse=True)
+
+app = dash.Dash(__name__,external_stylesheets = [dbc.themes.BOOTSTRAP])
+server = app.server
+server.wsgi_app = WhiteNoise(server.wsgi_app, root='static/')
 
 app.layout = html.Div(
     dbc.Container([
@@ -140,6 +153,32 @@ app.layout = html.Div(
             className="p-3 bg-white rounded-3"
         ),
         
+        html.Br(),
+        
+        dbc.Container([
+            html.H2('County Home Values (*This takes some time to run.)', style={"fontSize": 18}),
+            html.Hr(className="my-2"),
+            html.Div([
+                html.Label("Choose Date: "),
+                dcc.Dropdown(
+                    id="dropdown_map",
+                    options=[{"label": x, "value": x} 
+                              for x in all_dates],
+                    value='2021-10-31',
+                    multi=False)
+                ],
+            ),
+            html.Br(),
+            dbc.Row(
+                dbc.Col(
+                    dcc.Graph(id="map"),
+                    width={"size": 8, "offset": 2}
+                )
+            ),
+            ],
+            className="p-3 bg-white rounded-3"
+        ),
+        
     ], 
     className="py-3"
     ),
@@ -165,16 +204,22 @@ def update_growth_chart(states):
     fig.update_layout(xaxis={'categoryorder':'total descending'})
     return fig
 
+@app.callback(
+    Output("map", "figure"), 
+    Input("dropdown_map", "value"))
+def update_map(date):
+    mask = df_map['Date'] == date
+    fig = ff.create_choropleth(df_map[mask]['FIPS'].to_list(), df_map[mask]['Home Value'].to_list(),
+                               binning_endpoints = list(np.linspace(0,500000,11,dtype=int)),
+                               centroid_marker={'opacity': 0},
+                               asp=2.9, title='United States County Home Values',
+                               legend_title='Home Value'
+                               )
+    fig.layout.template = None
+    # fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+    return fig
+
 if __name__ == '__main__':
     app.run_server()
-    
 
-
-# fips = ['06021', '06023', '06027',
-#         '06029', '06033', '06059',
-#         '06047', '06049', '06051',
-#         '06055', '06061']
-# values = range(len(fips))
-
-# fig = ff.create_choropleth(fips=fips, values=values)
 
